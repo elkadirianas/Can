@@ -1,12 +1,13 @@
+# Dockerfile.producer
 FROM python:3.9-slim
 
 WORKDIR /app
 
-# Installation de la librairie Kafka
+# Installation unique de la librairie Kafka
 RUN pip install kafka-python
 
-# Copie du code
-COPY src/ ./src/
+# On ne copie QUE le script du manager
+COPY src/player_manager.py ./src/
 
 # Commande par défaut (sera surchargée par le mode interactif)
 CMD ["python", "src/player_manager.py"]

@@ -1,0 +1,24 @@
+# Dockerfile.consumer
+FROM python:3.9-slim-bookworm
+
+# 1. Installation de Java (Requis pour Spark) et outils système
+RUN apt-get update && \
+    apt-get install -y openjdk-17-jre-headless procps && \
+    rm -rf /var/lib/apt/lists/*
+
+ENV JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
+
+WORKDIR /app
+
+# 2. Installation de Spark et Kafka
+RUN pip install pyspark==3.5.0 kafka-python
+
+# 3. CONFIGURATION CRITIQUE DU PATH
+# C'est ici qu'on dit à Linux où trouver "spark-submit"
+ENV SPARK_HOME=/usr/local/lib/python3.9/site-packages/pyspark
+ENV PATH=$PATH:$SPARK_HOME/bin
+
+# 4. On ne copie QUE le script du processeur
+COPY src/spark_processor.py ./src/
+
+CMD ["bash"]

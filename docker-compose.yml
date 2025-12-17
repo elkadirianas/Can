@@ -1,0 +1,60 @@
+version: '3'
+services:
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.1
+    container_name: can-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - 22181:2181
+
+  kafka:
+    image: confluentinc/cp-kafka:7.6.1
+    container_name: can-kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "29092:29092" # Port accessible depuis ta machine hôte
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      # Configuration réseau critique :
+      # - PLAINTEXT:9092 -> Pour les conteneurs Docker internes (Spark, Init)
+      # - PLAINTEXT_HOST:29092 -> Pour ton PC (Scripts locaux)
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+
+  # Ce service crée le topic automatiquement et s'arrête
+  init-kafka:
+    image: confluentinc/cp-kafka:7.6.1
+    depends_on:
+      - kafka
+    entrypoint: [ '/bin/sh', '-c' ]
+    command: |
+      "
+      # On attend que Kafka soit prêt (boucle simple)
+      echo -e 'Attente de Kafka...'
+      while ! nc -z kafka 9092; do   
+        sleep 1
+      done
+      echo -e 'Kafka est prêt ! Création du topic...'
+      
+      kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic player_metrics --partitions 1 --replication-factor 1
+      
+      echo -e 'Topic player_metrics créé avec succès.'
+      "
+  # ... (zookeeper, kafka, init-kafka restent inchangés) ...
+  coach-cli:
+    build: .
+    container_name: can-coach
+    depends_on:
+      - kafka
+    environment:
+      # Ici on utilise le nom du service Docker "kafka" et le port interne 9092
+      KAFKA_BOOTSTRAP: kafka:9092
+    # Important pour l'interactivité
+    stdin_open: true 
+    tty: true
